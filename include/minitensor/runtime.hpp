@@ -43,5 +43,12 @@ void* aligned_malloc(std::size_t bytes);
 void* aligned_calloc(std::size_t bytes);
 void aligned_free(void* ptr) noexcept;
 
+// Decides whether an operation on this many elements of addition should use
+// all the threads. See src/runtime.cpp.
+bool worth_waking_threads(std::size_t elements) noexcept;
+
+// Creates the thread team, the first time it's called.
+void start_threads_once() noexcept;
+
 }  // namespace detail
 }  // namespace minitensor

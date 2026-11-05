@@ -252,8 +252,28 @@ byte it brings into L2. An earlier version cut the output into narrow columns in
 packed copy of B per thread. Both performed about the same on this machine, and the shared version
 is simpler and handles tall matrices with no extra code, so it was kept.
 
-Threads are only used above a certain amount of work, measured at around a 96 x 96 multiplication
-or 65,536 elements for element-wise work. Below that, starting them costs more than they save.
+### When to use the threads
+
+Worker threads go to sleep after about 2 ms without work. Measured here, using them while they're
+awake costs about 13 us, but waking them costs about 210 us. So a fixed size limit can't suit both a
+loop and a single call: at 100,000 elements, threads make a loop 5x faster but would make one call
+10x slower.
+
+So `worth_waking_threads()` in `runtime.cpp` looks at the size and at recent calls:
+
+| Work, in elements of addition | Decision |
+|---|---|
+| Below 65,536 | One thread |
+| 524,288 or more | All threads |
+| In between | All threads, but only after 3 calls that each arrive within 2 ms of the last |
+
+So one call stays on one thread, and a loop soon moves to all of them. Cheaper work counts for less:
+a sum element counts as a quarter of an element of addition, and it takes about 14 multiplications
+in `matmul` to equal one.
+
+The threads themselves start when the first tensor of 256 KiB or more is created. That normally
+happens before the work a program wants to time, and it cut the first threaded call from about
+1,530 us to about 500 us.
 
 | Threads, 1024 x 1024 `double` | Time (ms) | Billions of operations per second |
 |---|---:|---:|
@@ -315,6 +335,10 @@ The checks that matter most compare results with slow, simple reference code:
 CTest runs every test against each set of kernels through `MINITENSOR_ISA`. It also runs the matrix
 tests with tiny fake cache sizes, which forces matrices to split across every blocking loop.
 
+Speed is tested too. `tests/test_efficiency.cpp` fails if the library loses its speed, and
+`benchmarks/run_efficiency_test.sh` measures every operation against plain C++. The results are in
+[`EFFICIENCY.md`](EFFICIENCY.md).
+
 Testing covered GCC 13, Clang 18, a build without OpenMP, a shared library build, AddressSanitizer
 and UndefinedBehaviorSanitizer. Valgrind also ran on part of the suite with the AVX2 kernels, because
 it doesn't support AVX-512.
@@ -370,6 +394,12 @@ floats.
 temporary, and reuses its buffer.
 
 **What happens if the CPU has no AVX?** The generic kernels run. Nothing needs recompiling.
+
+**Why is a single call slower than a call in a loop?** Between calls, the worker threads go to sleep,
+and waking them takes about 210 us here. In a loop, they stay awake.
+
+**Why not always use every thread?** Below a certain size, waking the threads takes longer than the
+work. See "When to use the threads".
 
 **Is it safe to call from several threads?** Yes, as long as they don't write to the same tensor.
 Packing buffers are per thread, the kernel table is set up once, and the block cache has a lock.

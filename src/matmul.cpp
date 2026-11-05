@@ -39,8 +39,9 @@ namespace {
 
 // Below this many multiplications, packing costs more than it saves.
 constexpr double kSmallWork = 32.0 * 32.0 * 32.0;
-// Below this many multiplications, starting threads costs more than it saves.
-constexpr double kParallelWork = 96.0 * 96.0 * 96.0;
+// worth_waking_threads() counts work in elements of addition. One of those takes
+// about as long as this many multiplications here.
+constexpr double kMultiplicationsPerAddition = 14.0;
 // Threads take tiles from a shared list. Having several tiles per thread means
 // a thread held up by something else on the machine doesn't hold up the others.
 constexpr double kTilesPerThread = 4.0;
@@ -178,7 +179,8 @@ void gemm(std::size_t m, std::size_t n, std::size_t k, const T* a, std::ptrdiff_
 
     int threads = 1;
 #ifdef _OPENMP
-    if (work >= kParallelWork) threads = num_threads();
+    const double additions = std::min(work / kMultiplicationsPerAddition, 1e18);
+    if (worth_waking_threads(static_cast<std::size_t>(additions))) threads = num_threads();
 #endif
 
     T* packed_a = t_packed_a.get<T>(round_up(std::min(m, blocks.nc), mr) * blocks.kc);
@@ -271,9 +273,10 @@ void gemv(std::size_t m, std::size_t n, const T* a, std::ptrdiff_t rs_a, std::pt
           const T* x, std::ptrdiff_t inc_x, T* y) {
     const KernelSet<T>& set = kernels<T>();
     const bool contiguous_rows = cs_a == 1 && inc_x == 1;
-    const double work = static_cast<double>(m) * static_cast<double>(n);
 
-    for_each_chunk(m, work >= 65536.0, [&](std::size_t begin, std::size_t end) {
+    // Each row is a dot product, which takes about half as long per element as
+    // addition.
+    for_each_chunk(m, worth_waking_threads(m * n / 2), [&](std::size_t begin, std::size_t end) {
         for (std::size_t i = begin; i < end; ++i) {
             const T* row = a + static_cast<std::ptrdiff_t>(i) * rs_a;
             if (contiguous_rows) {

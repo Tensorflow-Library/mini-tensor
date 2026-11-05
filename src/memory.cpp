@@ -28,6 +28,9 @@ std::atomic<std::size_t> g_live_bytes{0};
 std::atomic<std::size_t> g_peak_bytes{0};
 std::atomic<std::size_t> g_allocations{0};
 
+// Creating the thread team takes milliseconds. Doing it for the first tensor of
+// this size means it normally happens before the work that a program times.
+constexpr std::size_t kStartThreadsBytes = std::size_t{1} << 18;
 // Small blocks are left to malloc, which is already fast for them.
 constexpr std::size_t kMinCachedBytes = std::size_t{1} << 16;
 // The cache keeps at most this much memory from being returned to the OS.
@@ -163,6 +166,7 @@ namespace detail {
 void* aligned_malloc(std::size_t bytes) {
     if (bytes == 0) return nullptr;
     if (bytes > SIZE_MAX - kOverhead) throw std::bad_alloc();
+    if (bytes >= kStartThreadsBytes) start_threads_once();
 
     const unsigned size_class = size_class_of(bytes);
     if (void* block = block_cache().take(size_class)) {
@@ -179,6 +183,7 @@ void* aligned_malloc(std::size_t bytes) {
 void* aligned_calloc(std::size_t bytes) {
     if (bytes == 0) return nullptr;
     if (bytes > SIZE_MAX - kOverhead) throw std::bad_alloc();
+    if (bytes >= kStartThreadsBytes) start_threads_once();
 
     const unsigned size_class = size_class_of(bytes);
     return align_block(std::calloc(1, capacity_of(size_class, bytes) + kOverhead), bytes,
