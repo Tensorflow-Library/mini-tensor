@@ -1,9 +1,9 @@
 # Run from the repository root: doxygen docs/Doxyfile
-# The pages are written to build/docs/html.
+# The pages are written to build-docs/html.
 PROJECT_NAME           = "mini-tensor"
 PROJECT_BRIEF          = "A small, fast tensor library written from scratch in C++17"
 PROJECT_NUMBER         = 1.0.0
-OUTPUT_DIRECTORY       = build/docs
+OUTPUT_DIRECTORY       = build-docs
 CREATE_SUBDIRS         = NO
 INPUT                  = README.md docs/DESIGN.md include/minitensor
 FILE_PATTERNS          = *.hpp *.md
