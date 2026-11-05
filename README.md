@@ -245,7 +245,7 @@ docs/                 Design notes and Doxygen settings
 ## Documentation
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) explains how the library works, phase by phase, and why.
-- `doxygen docs/Doxyfile` generates API reference pages in `build/docs/html`.
+- `doxygen docs/Doxyfile` generates API reference pages in `build-docs/html`.
 - [`examples/`](examples) has a feature tour, linear regression, a neural network, and image
   processing.
 
