@@ -1,6 +1,8 @@
 // Thread settings and the choice of SIMD kernels.
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -109,6 +111,57 @@ const char* simd_backend() noexcept {
 }
 
 namespace detail {
+namespace {
+
+// Worker threads go to sleep after about 2 ms without work, and waking them takes
+// much longer than using them awake: about 210 us against 13 us in
+// docs/EFFICIENCY.md. So medium-sized work only uses them when calls keep
+// arriving. One call stays on this thread, and a loop soon moves to all of them.
+constexpr std::size_t kMinThreadedElements = std::size_t{1} << 16;
+constexpr std::size_t kAlwaysThreadedElements = std::size_t{1} << 19;
+constexpr int kCallsBeforeWaking = 3;
+constexpr std::int64_t kThreadsStayAwakeNs = 2000000;
+
+std::atomic<std::int64_t> g_last_call_ns{0};
+std::atomic<int> g_calls_in_a_row{0};
+
+}  // namespace
+
+bool worth_waking_threads(std::size_t elements) noexcept {
+    if (elements < kMinThreadedElements) return false;
+
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    const std::int64_t now_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count();
+    const std::int64_t previous_ns = g_last_call_ns.exchange(now_ns, std::memory_order_relaxed);
+
+    if (elements >= kAlwaysThreadedElements) {
+        g_calls_in_a_row.store(kCallsBeforeWaking, std::memory_order_relaxed);
+        return true;
+    }
+    if (now_ns - previous_ns > kThreadsStayAwakeNs) {
+        g_calls_in_a_row.store(0, std::memory_order_relaxed);
+        return false;
+    }
+    const int calls = g_calls_in_a_row.load(std::memory_order_relaxed);
+    if (calls >= kCallsBeforeWaking) return true;
+    g_calls_in_a_row.store(calls + 1, std::memory_order_relaxed);
+    return false;
+}
+
+void start_threads_once() noexcept {
+#ifdef _OPENMP
+    static const bool started = [] {
+        const int threads = num_threads();
+        // The compiler removes an empty parallel block, so this needs a real effect.
+        std::atomic<int> arrived{0};
+#pragma omp parallel num_threads(threads)
+        arrived.fetch_add(1, std::memory_order_relaxed);
+        return arrived.load(std::memory_order_relaxed) > 0;
+    }();
+    (void)started;
+#endif
+}
+
 namespace {
 
 template <typename T>

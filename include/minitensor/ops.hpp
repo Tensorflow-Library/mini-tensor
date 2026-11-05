@@ -2,6 +2,7 @@
 /// @brief Arithmetic, matrix multiplication and other tensor operations.
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <stdexcept>
@@ -178,8 +179,8 @@ T dot(const Tensor<T>& a, const Tensor<T>& b) {
 /// loop reuse one output tensor instead of allocating a new one each time.
 template <typename T>
 void matmul_into(Tensor<T>& out, const Tensor<T>& a, const Tensor<T>& b) {
-    if (a.rank() != 2 || b.rank() != 2 || a.dim(1) != b.dim(0) ||
-        out.shape() != Shape{a.dim(0), b.dim(1)}) {
+    if (a.rank() != 2 || b.rank() != 2 || out.rank() != 2 || a.dim(1) != b.dim(0) ||
+        out.dim(0) != a.dim(0) || out.dim(1) != b.dim(1)) {
         throw std::invalid_argument("minitensor: matmul_into cannot write " +
                                     a.shape().to_string() + " x " + b.shape().to_string() +
                                     " into " + out.shape().to_string());
@@ -193,7 +194,13 @@ void matmul_into(Tensor<T>& out, const Tensor<T>& a, const Tensor<T>& b) {
         out.assign(result);
         return;
     }
-    out.fill(T(0));
+    // Small outputs skip the threaded fill, whose setup would cost more than the
+    // multiplication itself.
+    if (out.size() < (std::size_t{1} << 16)) {
+        std::fill_n(out.data(), out.size(), T(0));
+    } else {
+        out.fill(T(0));
+    }
     detail::gemm<T>(a.dim(0), b.dim(1), a.dim(1), a.data(), a.strides()[0], a.strides()[1],
                     b.data(), b.strides()[0], b.strides()[1], out.data(), out.strides()[0]);
 }

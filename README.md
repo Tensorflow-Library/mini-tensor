@@ -193,32 +193,44 @@ Wrong shapes and out-of-range arguments throw `std::invalid_argument` or `std::o
 
 ## Performance
 
-Measured with `bench_tensor` on an AMD Ryzen 9 7945HX (16 cores), in WSL2 on Ubuntu 24.04, compiled
-with GCC 13.3. Each time is the fastest of several runs, in milliseconds. "Plain loop" is the
-obvious single-threaded C++ code: a vector of vectors with three nested loops for matrix
-multiplication, and one loop for addition.
+Measured on an AMD Ryzen 9 7945HX (16 cores), in WSL2 on Ubuntu 24.04, compiled with GCC 13.3. Each
+time is the fastest of several runs, in milliseconds, and baselines run on one thread.
 
-| Operation | Size | mini-tensor | Plain loop | Speedup |
+| Operation | Size | mini-tensor | Baseline | Speedup |
 |---|---|---:|---:|---:|
-| Matrix multiply, `double` | 128 x 128 | 0.019 | 1.12 | 59x |
-| Matrix multiply, `double` | 512 x 512 | 0.57 | 97.8 | 171x |
-| Matrix multiply, `double` | 1024 x 1024 | 4.5 | 768 | 170x |
-| Matrix multiply, `double` | 2048 x 2048 | 41 | | |
-| Matrix multiply, `float` | 1024 x 1024 | 2.2 | | |
-| Add, `double` | 100,000 elements | 0.0037 | 0.0195 | 5.2x |
-| Add, `double` | 10,000,000 elements | 8.2 | 8.4 | 1.0x |
-| Sum, `double` | 10,000,000 elements | 0.77 | | |
-| Dot product, `double` | 10,000,000 elements | 3.2 | | |
-| Matrix x vector, `double` | 2048 x 2048 | 0.074 | | |
-| Transpose (view) | 2048 x 2048 | 0.0001 | | |
+| Matrix multiply, `double` | 128 x 128 | 0.029 | 1.04, textbook loop | 36x |
+| Matrix multiply, `double` | 512 x 512 | 0.71 | 95.7, textbook loop | 135x |
+| Matrix multiply, `double` | 1024 x 1024 | 5.0 | 772, textbook loop | 155x |
+| Matrix multiply, `double` | 1024 x 1024 | 5.0 | 269, best plain loop | 54x |
+| Matrix multiply, `double` | 2048 x 2048 | 35 | 2,910, best plain loop | 84x |
+| Matrix multiply, `float` | 1024 x 1024 | 2.1 | | |
+| Matrix x vector, `double` | 2048 x 2048 | 0.064 | 2.69, plain loop | 42x |
+| Add, `double` | 100,000 elements | 0.0041 | 0.0217, plain loop | 5.3x |
+| Add, `double` | 10,000,000 elements | 6.7 | 7.3, plain loop | 1.1x |
+| Sum, `double` | 2048 x 2048 | 0.039 | 2.54, vector of vectors | 65x |
+| Read every element, `t(i, j)` | 2048 x 2048 | 2.55 | 2.57, raw memory | 1.0x |
+| Transpose (view) | 2048 x 2048 | 0.00003 | 28.9, plain copy | |
 
-Adding 10 million elements gains nothing because that work is limited by memory bandwidth, not by
-the CPU: the three arrays don't fit in cache, so adding threads doesn't help.
+The textbook loop is a vector of vectors in i-j-k order. The best plain loop is a flat array in
+i-k-j order. Adding 10 million elements gains little because that work is limited by memory
+bandwidth, not by the CPU: the three arrays don't fit in cache, so more threads don't help.
 
-A single core reaches about 65 billion floating-point operations per second in matrix
-multiplication, close to this CPU's limit of 16 per clock cycle. See
-[`docs/DESIGN.md`](docs/DESIGN.md) for how this works and for more measurements. Your results will
-depend on your hardware, and a virtual machine adds noise, so run `bench_tensor` to measure yours.
+A single core reaches about 60 billion floating-point operations per second in matrix
+multiplication, close to this CPU's limit of 16 per clock cycle. Your results will depend on your
+hardware, and a virtual machine adds noise.
+
+## Efficiency test
+
+Execution time is the main goal of this project, so it has its own test. It times every operation
+the challenge asks for against plain C++, and takes about a minute:
+
+```bash
+benchmarks/run_efficiency_test.sh
+```
+
+This writes `efficiency-report.md`. The results, how they're measured and the known limits are in
+[`docs/EFFICIENCY.md`](docs/EFFICIENCY.md). Automated checks in `tests/test_efficiency.cpp` also run
+with the normal tests, and fail if the library loses its speed.
 
 ## Project layout
 
@@ -237,14 +249,15 @@ src/
   runtime.cpp           Thread count and SIMD selection
   kernels/              SIMD loops, compiled once per instruction set
 tests/                Test cases, with no external test framework
-benchmarks/           Timing program
+benchmarks/           The efficiency test
 examples/             Tutorials and small applications
-docs/                 Design notes and Doxygen settings
+docs/                 Design notes, efficiency results and Doxygen settings
 ```
 
 ## Documentation
 
 - [`docs/DESIGN.md`](docs/DESIGN.md) explains how the library works, phase by phase, and why.
+- [`docs/EFFICIENCY.md`](docs/EFFICIENCY.md) is the efficiency test, with full results.
 - `doxygen docs/Doxyfile` generates API reference pages in `build-docs/html`.
 - [`examples/`](examples) has a feature tour, linear regression, a neural network, and image
   processing.

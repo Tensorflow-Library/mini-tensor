@@ -20,6 +20,16 @@ minitensor_add_test(test_elementwise)
 minitensor_add_test(test_matmul)
 minitensor_add_test(test_utilities)
 
+# Timings only mean something in an optimized build, running on its own.
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MINITENSOR_SANITIZE)
+    add_executable(test_efficiency test_efficiency.cpp)
+    target_link_libraries(test_efficiency PRIVATE minitensor::minitensor)
+    target_include_directories(test_efficiency PRIVATE ${PROJECT_SOURCE_DIR}/benchmarks)
+    target_compile_options(test_efficiency PRIVATE -Wall -Wextra -Wpedantic)
+    add_test(NAME test_efficiency COMMAND test_efficiency)
+    set_tests_properties(test_efficiency PROPERTIES RUN_SERIAL TRUE)
+endif()
+
 # Tiny cache sizes force matrices to be split across every level of blocking.
 add_test(NAME test_matmul.small_caches COMMAND test_matmul)
 set_tests_properties(test_matmul.small_caches PROPERTIES ENVIRONMENT
