@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(minitensor
-    VERSION 1.0.0
+    VERSION 1.1.0
     DESCRIPTION "A small, fast tensor library written from scratch in C++17"
     HOMEPAGE_URL "https://github.com/Tensorflow-Library/mini-tensor"
     LANGUAGES CXX)
