@@ -1,0 +1,27 @@
+# Run from the repository root: doxygen docs/Doxyfile
+# The pages are written to build/docs/html.
+PROJECT_NAME           = "mini-tensor"
+PROJECT_BRIEF          = "A small, fast tensor library written from scratch in C++17"
+PROJECT_NUMBER         = 1.0.0
+OUTPUT_DIRECTORY       = build/docs
+CREATE_SUBDIRS         = NO
+INPUT                  = README.md docs/DESIGN.md include/minitensor
+FILE_PATTERNS          = *.hpp *.md
+RECURSIVE              = NO
+USE_MDFILE_AS_MAINPAGE = README.md
+EXAMPLE_PATH           = examples
+EXCLUDE_SYMBOLS        = minitensor::detail
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HAVE_DOT               = YES
+CLASS_GRAPH            = NO
+COLLABORATION_GRAPH    = NO
+INCLUDE_GRAPH          = NO
+INCLUDED_BY_GRAPH      = NO
+QUIET                  = YES
+WARN_IF_UNDOCUMENTED   = NO
+EXTRACT_ALL            = NO
+JAVADOC_AUTOBRIEF      = YES
+OPTIMIZE_OUTPUT_FOR_C  = NO
